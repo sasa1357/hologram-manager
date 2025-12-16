@@ -1,0 +1,929 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ホログラム管理</title>
+  <style>
+    :root {
+      --bg: #f7f8fa;
+      --panel: #ffffff;
+      --card: #ffffff;
+      --text: #111111;
+      --muted: #555555;
+      --accent-test: #2a78ff;
+      --accent-prod: #4caf50;
+      --border: rgba(0, 0, 0, 0.12);
+      --shadow: 0 12px 34px rgba(0, 0, 0, 0.12);
+      --radius: 14px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif;
+      background: linear-gradient(180deg, #fdfefe 0%, #f2f4f8 100%);
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 34px 18px 28px;
+    }
+    body.no-scroll { overflow: hidden; }
+    .app {
+      width: min(1200px, 100%);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(6px);
+      padding: 18px;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px 6px;
+    }
+    .title { font-size: 22px; font-weight: 700; letter-spacing: 0.2px; }
+    .tabs {
+      display: inline-flex;
+      background: rgba(0, 0, 0, 0.04);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 4px;
+      gap: 6px;
+    }
+    .tab {
+      border: none;
+      border-radius: 9px;
+      padding: 10px 14px;
+      font-size: 14px;
+      color: var(--text);
+      background: transparent;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      position: relative;
+    }
+    .tab[data-active="true"] {
+      background: rgba(0, 0, 0, 0.07);
+      box-shadow: inset 0 0 0 1px var(--border), 0 8px 18px rgba(0,0,0,0.08);
+    }
+    .tab .dot { width: 9px; height: 9px; border-radius: 50%; }
+    main {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 14px;
+      padding: 12px;
+    }
+    @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.02);
+    }
+    .panel h2 { margin: 0 0 8px; font-size: 17px; }
+    label { display: block; margin: 12px 0 6px; font-weight: 600; }
+    input[type="text"], input[type="date"], textarea {
+      width: 100%; padding: 10px 12px; border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text); font-size: 14px; resize: vertical;
+    }
+    textarea { min-height: 96px; }
+    .number-pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 12px; background: rgba(0, 0, 0, 0.04);
+      border: 1px dashed var(--border); border-radius: 12px;
+      color: var(--muted); font-size: 14px;
+    }
+    .number-pill strong { color: var(--text); font-size: 18px; }
+    .upload {
+      border: 1px dashed var(--border); border-radius: 12px; padding: 14px;
+      background: rgba(0, 0, 0, 0.02); text-align: center;
+      cursor: pointer; transition: border-color 0.2s ease, background 0.2s ease;
+    }
+    .upload:hover { border-color: rgba(0,0,0,0.25); background: rgba(0,0,0,0.04); }
+    .upload input { display: none; }
+    .upload img {
+      width: 100%; max-height: 180px; object-fit: cover; border-radius: 10px;
+      margin-bottom: 8px; display: none;
+    }
+    .upload.has-image img { display: block; }
+    .btn {
+      width: 100%; border: none; border-radius: 10px; padding: 12px 14px;
+      color: #0b0e15; font-weight: 700; font-size: 15px; cursor: pointer;
+      margin-top: 10px; transition: transform 0.15s ease, filter 0.15s ease;
+    }
+    .btn:hover { transform: translateY(-1px); filter: brightness(1.02); }
+    .btn:active { transform: translateY(0); }
+    .list {
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px;
+    }
+    @media (max-width: 1100px) { .list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 700px) { .list { grid-template-columns: 1fr; } }
+    .card {
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 12px; box-shadow: var(--shadow); display: grid; gap: 10px;
+      position: relative; cursor: pointer; transition: transform 0.12s ease, box-shadow 0.12s ease;
+    }
+    .card:hover { transform: translateY(-2px); box-shadow: 0 16px 40px rgba(0,0,0,0.16); }
+    .card .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+    .badge { padding: 6px 10px; border-radius: 10px; background: rgba(255,255,255,0.09); border: 1px solid var(--border); font-weight: 700; font-size: 13px; }
+    .meta { color: var(--muted); font-size: 12px; }
+    .thumb { width: 100%; aspect-ratio: 4 / 3; border-radius: 12px; background: #f5f6f8; border: 1px solid var(--border); overflow: hidden; display: grid; place-items: center; color: var(--muted); font-size: 13px; }
+    .thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .card .actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .ghost { border: 1px solid var(--border); background: transparent; color: var(--text); border-radius: 8px; padding: 8px 10px; cursor: pointer; font-weight: 600; }
+    .ghost:hover { background: rgba(0, 0, 0, 0.06); }
+    .top .ghost { white-space: nowrap; flex-shrink: 0; }
+
+    .params-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+    .params-table th, .params-table td { border: 1px solid var(--border); padding: 8px; }
+    .params-table th {
+      width: 42%;
+      text-align: left;
+      background: rgba(255,255,255,0.04);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .params-table input { width: 100%; border: none; background: transparent; color: var(--text); padding: 0; font-size: 13px; }
+    .params-table input:focus { outline: none; }
+    .subtabs {
+      display: inline-flex;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+    .subtabs button {
+      border: none;
+      background: transparent;
+      padding: 8px 12px;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--text);
+      border-right: 1px solid var(--border);
+    }
+    .subtabs button:last-child { border-right: none; }
+    .subtabs button[data-active="true"] { background: rgba(0,0,0,0.06); }
+    .decision-cell {
+      text-align: center;
+      width: 60px;
+      min-width: 60px;
+      cursor: pointer;
+      vertical-align: middle;
+      position: relative;
+    }
+    .decision-col {
+      width: 60px;
+      min-width: 60px;
+      text-align: center;
+    }
+    .measurement-table {
+      table-layout: fixed;
+      width: 100%;
+    }
+    .measurement-table th,
+    .measurement-table td {
+      padding: 6px;
+      font-size: 12px;
+      white-space: normal;
+      word-break: break-word;
+    }
+    .decision-dot {
+      width: 14px; height: 14px; border-radius: 50%;
+      border: 2px solid transparent;
+      display: inline-block;
+      cursor: pointer;
+      background: transparent;
+    }
+    .decision-dot.active { background: #d32f2f; }
+    .dash-placeholder { text-align: center; }
+
+    /* Modal */
+    .modal { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 999; }
+    .modal[data-open="true"] { display: flex; }
+    .modal.hidden { display: none !important; }
+    .modal.show { display: flex !important; }
+    .modal__backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.35); backdrop-filter: blur(4px); }
+    .modal__content {
+      position: relative; width: min(900px, 92vw); max-height: 90vh; background: #ffffff;
+      border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow);
+      padding: 16px; display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 14px; overflow: auto;
+    }
+    @media (max-width: 900px) { .modal__content { grid-template-columns: 1fr; max-height: 92vh; } }
+    .modal__close { position: absolute; top: 8px; right: 8px; border: none; background: rgba(0,0,0,0.06); color: var(--text); border-radius: 50%; width: 34px; height: 34px; font-size: 18px; cursor: pointer; }
+    .modal__image { border: 1px solid var(--border); border-radius: 12px; background: #f5f6f8; min-height: 320px; display: grid; place-items: center; overflow: hidden; }
+    .modal__image img { width: 100%; height: 100%; object-fit: contain; }
+    .modal__fields label { margin-top: 10px; }
+    .modal__fields textarea { min-height: 180px; }
+    .modal__actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="title">ホログラム管理</div>
+      <div class="tabs" id="tab-bar"></div>
+    </header>
+
+    <main>
+      <section class="panel" id="form-panel">
+        <div class="form-head" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+          <h2 id="form-title">作成ホログラムを追加</h2>
+          <button class="ghost" id="form-reset">リセット</button>
+        </div>
+        <div class="number-pill">次の番号 <strong id="next-number">#1</strong></div>
+        <div class="meta" style="margin-top:4px; color:#888;">番号を感材等にメモしてください。</div>
+        <label for="title">タイトル</label>
+        <input id="title" type="text" placeholder="" />
+
+        <label for="shotAt">撮影日</label>
+        <input id="shotAt" type="date" />
+
+        <div id="capture-params-block" style="margin-top:10px;">
+          <label style="margin-top:4px;">撮影パラメータ</label>
+          <table class="params-table">
+            <tbody>
+              <tr><th>レーザーパワー[ｍW]</th><td><input data-capture="laserPower" type="text" placeholder="" /></td></tr>
+              <tr><th>露光パワー[μW]</th><td><input data-capture="exposurePower" type="text" placeholder="" /></td></tr>
+              <tr><th>露光パワーの面積[cm2]</th><td><input data-capture="exposureArea" type="text" placeholder="" /></td></tr>
+              <tr><th>セトリング時間[ms]</th><td><input data-capture="settlingTime" type="text" placeholder="" /></td></tr>
+              <tr id="capture-shutter-row"><th>シャッター時間[μs]</th><td><input data-capture="shutterTime" type="text" placeholder="" /></td></tr>
+              <tr><th>L3-Holoplate間[mm]</th><td><input data-capture="l3Holoplate" type="text" placeholder="" /></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div id="measurement-block" style="display:none; margin-top:10px;">
+          <div class="subtabs" id="measurement-tabs">
+            <button data-measure="shutter" data-active="true">シャッター時間計測</button>
+            <button data-measure="distance" data-active="false">L3-Holoplate間計測</button>
+          </div>
+          <div id="measurement-content"></div>
+        </div>
+
+        <div id="product-params-block" style="display:none; margin-top:10px;">
+          <label style="margin-top:4px;">ホロパラメータ</label>
+          <table class="params-table">
+            <tbody id="param-rows">
+              <tr><th>ホログラムの種類</th><td><input data-param="type" type="text" placeholder="" /></td></tr>
+              <tr><th>視差画像枚数</th><td><input data-param="parallaxCount" type="text" placeholder="" /></td></tr>
+              <tr><th>ホログラムのサイズ (mm)</th><td><input data-param="size" type="text" placeholder="" /></td></tr>
+              <tr><th>セグメントサイズ (pixel)</th><td><input data-param="segmentSize" type="text" placeholder="" /></td></tr>
+              <tr><th>ホログラム解像度 (pixel)</th><td><input data-param="resolution" type="text" placeholder="" /></td></tr>
+              <tr><th>画素ピッチ (μm)</th><td><input data-param="pitch" type="text" placeholder="" /></td></tr>
+              <tr><th>視点距離 (m)</th><td><input data-param="distance" type="text" placeholder="" /></td></tr>
+              <tr><th>参照光 (rad)</th><td><input data-param="reference" type="text" placeholder="" /></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <label for="memo">メモ</label>
+        <textarea id="memo" placeholder=""></textarea>
+
+        <label>写真</label>
+        <div class="upload" id="upload-box">
+          <img id="preview" alt="preview" />
+          <div>ここをクリックして写真を選択</div>
+          <input type="file" id="photo" accept="image/*" />
+        </div>
+
+        <button class="btn" id="save-btn">保存</button>
+      </section>
+
+      <section class="panel">
+        <div class="top" style="margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; gap:8px;">
+          <h2 style="margin:0;" id="list-title">露光テスト結果一覧</h2>
+          <div class="meta" id="count-label"></div>
+        </div>
+        <div class="list" id="list"></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal" id="modal" aria-hidden="true">
+    <div class="modal__backdrop" data-action="close"></div>
+      <div class="modal__content">
+      <button class="modal__close" data-action="close">×</button>
+      <div class="modal__image" id="modal-image-box">画像なし</div>
+      <div class="modal__fields">
+        <div class="badge" id="modal-badge"></div>
+        <div class="meta" id="modal-meta" style="margin-top:4px;"></div>
+        <label for="modal-shotAt">撮影日</label>
+        <input id="modal-shotAt" type="date" />
+        <div id="modal-capture"></div>
+        <div id="modal-measurement"></div>
+        <div id="modal-params"></div>
+        <label for="modal-memo">メモ</label>
+        <textarea id="modal-memo" placeholder=""></textarea>
+        <div class="modal__actions">
+          <button class="ghost" data-action="save-modal">更新</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const tabs = [
+      { key: "test", label: "露光テスト", color: getComputedStyle(document.documentElement).getPropertyValue("--accent-test") },
+      { key: "product", label: "作成ホログラム", color: getComputedStyle(document.documentElement).getPropertyValue("--accent-prod") },
+    ];
+
+    const stateKey = "holo-manager-entries";
+    const activeTabKey = "holo-active-tab";
+    let state = loadState();
+    let activeTab = loadActiveTab() || tabs[0].key;
+    let pendingImage = null;
+    let openId = null;
+    let measurementMode = "shutter";
+
+    const tabBar = document.getElementById("tab-bar");
+    const nextNumberEl = document.getElementById("next-number");
+    const titleInput = document.getElementById("title");
+    const shotAtInput = document.getElementById("shotAt");
+    const memoInput = document.getElementById("memo");
+    const photoInput = document.getElementById("photo");
+    const previewEl = document.getElementById("preview");
+    const uploadBox = document.getElementById("upload-box");
+    const saveBtn = document.getElementById("save-btn");
+    const listEl = document.getElementById("list");
+    const countLabel = document.getElementById("count-label");
+    const listTitle = document.getElementById("list-title");
+    const formTitle = document.getElementById("form-title");
+    const formResetBtn = document.getElementById("form-reset");
+    const productParamsBlock = document.getElementById("product-params-block");
+    const paramInputs = Array.from(document.querySelectorAll("[data-param]"));
+    const captureParamsBlock = document.getElementById("capture-params-block");
+    const captureInputs = Array.from(document.querySelectorAll("[data-capture]"));
+    const captureShutterRow = document.getElementById("capture-shutter-row");
+    const measurementBlock = document.getElementById("measurement-block");
+    const measurementTabs = document.getElementById("measurement-tabs");
+    const measurementContent = document.getElementById("measurement-content");
+
+    const modal = document.getElementById("modal");
+    const modalBadge = document.getElementById("modal-badge");
+    const modalMeta = document.getElementById("modal-meta");
+    const modalMemo = document.getElementById("modal-memo");
+    const modalShotAt = document.getElementById("modal-shotAt");
+    const modalImageBox = document.getElementById("modal-image-box");
+    const modalParams = document.getElementById("modal-params");
+    const modalCapture = document.getElementById("modal-capture");
+    const modalMeasurement = document.getElementById("modal-measurement");
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(stateKey);
+        return raw ? JSON.parse(raw) : { test: [], product: [] };
+      } catch (e) {
+        return { test: [], product: [] };
+      }
+    }
+
+    function loadActiveTab() {
+      try {
+        const raw = localStorage.getItem(activeTabKey);
+        return raw || null;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function saveActiveTab(tabKey) {
+      try {
+        localStorage.setItem(activeTabKey, tabKey);
+      } catch (e) {}
+    }
+
+    function saveState() {
+      localStorage.setItem(stateKey, JSON.stringify(state));
+    }
+
+    function entries(key = activeTab) {
+      if (!state[key]) state[key] = [];
+      return state[key];
+    }
+
+    function nextNumber(key = activeTab) {
+      const list = entries(key);
+      if (!list.length) return 1;
+      return Math.max(...list.map((e) => e.number || 0)) + 1;
+    }
+
+    function formatDate(iso) {
+      if (!iso) return "";
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return "";
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return `${yyyy}/${mm}/${dd}`;
+    }
+
+    function toInputDate(iso) {
+      if (!iso) return "";
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return "";
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    function renderTabs() {
+      tabBar.innerHTML = "";
+      tabs.forEach((tab) => {
+        const btn = document.createElement("button");
+        btn.className = "tab";
+        btn.dataset.active = tab.key === activeTab;
+        btn.innerHTML = `<span class="dot" style="background:${tab.color}"></span>${tab.label}`;
+        btn.onclick = () => {
+          activeTab = tab.key;
+          saveActiveTab(activeTab);
+          resetForm();
+          updateNextNumber();
+          renderTabs();
+          renderList();
+          toggleParamsBlock();
+          toggleCaptureShutter();
+          updateFormTitle();
+          renderMeasurementTabs();
+        };
+        tabBar.appendChild(btn);
+      });
+    }
+
+    function resetForm() {
+      titleInput.value = "";
+      shotAtInput.value = "";
+      memoInput.value = "";
+      photoInput.value = "";
+      pendingImage = null;
+      previewEl.src = "";
+      uploadBox.classList.remove("has-image");
+      paramInputs.forEach((inp) => (inp.value = ""));
+      captureInputs.forEach((inp) => (inp.value = ""));
+      measurementMode = "shutter";
+      renderMeasurementTabs();
+    }
+
+    function updateFormTitle() {
+      formTitle.textContent = activeTab === "test" ? "露光テスト結果を追加" : "作成ホログラムを追加";
+    }
+
+    function updateNextNumber() {
+      nextNumberEl.textContent = `#${nextNumber()}`;
+    }
+
+    function fileToDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    photoInput.addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      pendingImage = await fileToDataUrl(file);
+      previewEl.src = pendingImage;
+      uploadBox.classList.add("has-image");
+    });
+
+    uploadBox.addEventListener("click", () => photoInput.click());
+    formResetBtn.addEventListener("click", () => resetForm());
+
+    saveBtn.addEventListener("click", async () => {
+      const title = titleInput.value.trim();
+      const memo = memoInput.value.trim();
+      const shotAtRaw = shotAtInput.value;
+      const params =
+        activeTab === "product"
+          ? paramInputs.reduce((acc, input) => {
+              acc[input.dataset.param] = input.value.trim();
+              return acc;
+            }, {})
+          : {};
+      const captureParams = captureInputs.reduce((acc, input) => {
+        acc[input.dataset.capture] = input.value.trim();
+        return acc;
+      }, {});
+      let imageData = pendingImage;
+
+      if (photoInput.files[0] && !imageData) {
+        imageData = await fileToDataUrl(photoInput.files[0]);
+      }
+
+      const shotAtIso = shotAtRaw ? new Date(shotAtRaw).toISOString() : "";
+
+      const entry = {
+        id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+        number: nextNumber(),
+        title: title || `${tabs.find((t) => t.key === activeTab).label}`,
+        memo,
+        shotAt: shotAtIso,
+        params,
+        captureParams,
+        measurement: collectMeasurement(),
+        image: imageData || "",
+        createdAt: new Date().toISOString(),
+      };
+
+      const list = entries();
+      list.unshift(entry);
+      saveState();
+      renderList();
+      updateNextNumber();
+    });
+
+    function toggleParamsBlock() {
+      productParamsBlock.style.display = activeTab === "product" ? "block" : "none";
+    }
+    function toggleCaptureShutter() {
+      captureShutterRow.style.display = "";
+    }
+
+    function collectMeasurement() {
+      if (activeTab !== "test") return null;
+      const rows = Array.from(measurementContent.querySelectorAll("tbody tr")).map((tr) => {
+        const cells = {};
+        tr.querySelectorAll("input").forEach((inp) => {
+          const key = inp.dataset.measureKey || "";
+          cells[key || "value"] = inp.value.trim();
+        });
+        return cells;
+      });
+      return { mode: measurementMode, rows };
+    }
+
+    function renderMeasurementTabs() {
+      if (activeTab !== "test") {
+        measurementBlock.style.display = "none";
+        return;
+      }
+      measurementBlock.style.display = "block";
+      Array.from(measurementTabs.querySelectorAll("button")).forEach((btn) => {
+        btn.dataset.active = btn.dataset.measure === measurementMode;
+      });
+      applyShutterPlaceholder();
+      renderMeasurementTable();
+    }
+
+    function renderList() {
+      const list = entries();
+      listTitle.textContent = activeTab === "test" ? "露光テスト結果一覧" : "作成ホログラム一覧";
+      countLabel.textContent = `${list.length} 件`;
+      if (!list.length) {
+        listEl.innerHTML = `<div class="meta" style="grid-column: 1 / -1;">まだ登録がありません。</div>`;
+        return;
+      }
+
+      listEl.innerHTML = "";
+      list.forEach((item) => {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.dataset.id = item.id;
+        const shotLabel = formatDate(item.shotAt) || "未設定";
+        const params = item.params || {};
+        const paramSummary =
+          activeTab === "product"
+            ? `<div class="meta">種類: ${params.type || "-"}</div>`
+            : "";
+        card.innerHTML = `
+          <div class="top">
+            <div>
+              <div class="badge">#${item.number} ${item.title || "(無題)"}</div>
+              <div class="meta">撮影日: ${shotLabel}</div>
+              ${paramSummary}
+            </div>
+            <button class="ghost" data-action="delete">削除</button>
+          </div>
+          <div class="thumb">${item.image ? `<img src="${item.image}" alt="photo" />` : "写真なし"}</div>
+          <div class="actions">
+            <button class="ghost" data-action="open">開く</button>
+          </div>
+        `;
+        listEl.appendChild(card);
+      });
+    }
+
+    measurementTabs.addEventListener("click", (e) => {
+      const mode = e.target.dataset.measure;
+      if (!mode) return;
+      measurementMode = mode;
+      renderMeasurementTabs();
+    });
+
+    measurementContent.addEventListener("click", (e) => {
+      const cell = e.target.closest(".decision-cell");
+      if (!cell) return;
+      const dot = cell.querySelector(".decision-dot");
+      const hidden = cell.querySelector('input[data-measure-key="decision"]');
+      if (!dot) return;
+      if (dot.classList.contains("active")) {
+        dot.classList.remove("active");
+        if (hidden) hidden.value = "";
+        return;
+      }
+      measurementContent.querySelectorAll(".decision-dot").forEach((d) => d.classList.remove("active"));
+      measurementContent.querySelectorAll('input[data-measure-key="decision"]').forEach((inp) => (inp.value = ""));
+      dot.classList.add("active");
+      if (hidden) hidden.value = "selected";
+    });
+
+    function renderMeasurementTable() {
+      if (measurementMode === "shutter") {
+        const values = Array.from({ length: 16 }, (_, i) => 50 * (i + 1)); // 50,100,...,800
+        measurementContent.innerHTML =
+          buildTable(
+            16,
+            ["最適露光量[μJ/cm2]", "シャッター時間[μs]", "決定値"],
+            [values, [], []],
+            ["e", "shutter", "decision"]
+          ) +
+          `<div style="margin-top:6px; text-align:right;"><button class="ghost" id="shutter-calc-btn">シャッター時間計算</button></div>`;
+        const calcBtn = document.getElementById("shutter-calc-btn");
+        if (calcBtn) calcBtn.onclick = calculateShutterTimes;
+      } else {
+        measurementContent.innerHTML = buildTable(16, ["L3-Holoplate間[mm]", "決定値"], [], ["distance", "decision"]);
+      }
+    }
+
+    function buildTable(rows, headers, columnPreset = [], colKeys = []) {
+      const thead = `<thead><tr>${headers
+        .map((h, idx) => {
+          const key = colKeys[idx] || "";
+          const cls = key === "decision" ? ' class="decision-col"' : "";
+          return `<th${cls}>${h}</th>`;
+        })
+        .join("")}</tr></thead>`;
+      const bodyRows = Array.from({ length: rows }, (_, rowIdx) => {
+        const cells = headers.map((_, colIdx) => {
+          const presetCol = columnPreset[colIdx] || [];
+          const val = presetCol[rowIdx] !== undefined ? presetCol[rowIdx] : "";
+          const key = colKeys[colIdx] || "";
+          const readonly = key === "e" ? "readonly" : "";
+          if (key === "decision") {
+            const active = val === "selected";
+            return `<td class="decision-cell"><span class="decision-dot ${active ? "active" : ""}" data-decision="true"></span><input type="hidden" data-measure-key="${key}" value="${val || ""}" /></td>`;
+          }
+          return `<td><input type="text" data-measure-key="${key}" value="${val}" ${readonly} /></td>`;
+        });
+        return `<tr>${cells.join("")}</tr>`;
+      }).join("");
+      return `<table class="params-table measurement-table">${thead}<tbody>${bodyRows}</tbody></table>`;
+    }
+
+    function calculateShutterTimes() {
+      const eInputs = measurementContent.querySelectorAll('input[data-measure-key="e"]');
+      const shutterInputs = measurementContent.querySelectorAll('input[data-measure-key="shutter"]');
+      const area = parseFloat(document.querySelector('[data-capture="exposureArea"]').value) || 0;
+      const power = parseFloat(document.querySelector('[data-capture="exposurePower"]').value) || 0;
+      if (!power || !area) {
+        shutterInputs.forEach((inp) => (inp.value = ""));
+        return;
+      }
+      eInputs.forEach((inp, idx) => {
+        const eVal = parseFloat(inp.value);
+        const out = isNaN(eVal) ? "" : Math.round((eVal * area) / power * 1e6);
+        if (shutterInputs[idx]) shutterInputs[idx].value = out;
+      });
+    }
+
+    function applyShutterPlaceholder() {
+      const shutterInput = document.querySelector('[data-capture="shutterTime"]');
+      const l3Input = document.querySelector('[data-capture="l3Holoplate"]');
+
+      const setDash = (input, enable) => {
+        if (!input) return;
+        if (enable) {
+          if (!input.value) input.value = "－";
+          input.readOnly = true;
+          input.classList.add("dash-placeholder");
+        } else {
+          if (input.value === "－") input.value = "";
+          input.readOnly = false;
+          input.classList.remove("dash-placeholder");
+        }
+      };
+
+      if (activeTab !== "test") {
+        setDash(shutterInput, false);
+        setDash(l3Input, false);
+        return;
+      }
+
+      // シャッター計測: シャッター時間にダッシュ、L3は自由
+      if (measurementMode === "shutter") {
+        setDash(shutterInput, true);
+        setDash(l3Input, false);
+        return;
+      }
+
+      // L3-Holoplate計測: L3にダッシュ、シャッターは自由
+      if (measurementMode === "distance") {
+        setDash(shutterInput, false);
+        setDash(l3Input, true);
+        return;
+      }
+
+      // それ以外（念のためクリア）
+      setDash(shutterInput, false);
+      setDash(l3Input, false);
+    }
+
+    function findEntryById(id) {
+      const list = entries();
+      const idx = list.findIndex((item) => item.id === id);
+      return { list, idx, item: list[idx] };
+    }
+
+    function openModal(id) {
+      const { item } = findEntryById(id);
+      if (!item) return;
+      openId = id;
+      modalBadge.textContent = `#${item.number} ${item.title || "(無題)"}`;
+      modalMeta.textContent = "";
+      modalMemo.value = item.memo || "";
+      modalShotAt.value = toInputDate(item.shotAt || item.createdAt);
+      renderModalParams(item);
+      renderModalCapture(item);
+      renderModalMeasurement(item);
+      lockModalFields();
+      if (item.image) {
+        modalImageBox.innerHTML = `<img src="${item.image}" alt="photo" />`;
+      } else {
+        modalImageBox.textContent = "画像なし";
+      }
+      modal.dataset.open = "true";
+      modal.setAttribute("aria-hidden", "false");
+      modal.classList.remove("hidden");
+      modal.classList.add("show");
+      document.body.classList.add("no-scroll");
+    }
+
+    function closeModal() {
+      modal.dataset.open = "false";
+      modal.setAttribute("aria-hidden", "true");
+      modal.classList.remove("show");
+      modal.classList.add("hidden");
+      openId = null;
+      document.body.classList.remove("no-scroll");
+    }
+
+    listEl.addEventListener("click", (e) => {
+      const action = e.target.dataset.action;
+      if (!action) {
+        const card = e.target.closest(".card");
+        if (card) openModal(card.dataset.id);
+        return;
+      }
+      const card = e.target.closest(".card");
+      const id = card.dataset.id;
+      const { list, idx } = findEntryById(id);
+      if (idx === -1) return;
+
+      if (action === "delete") {
+        list.splice(idx, 1);
+        saveState();
+        renderList();
+        updateNextNumber();
+      }
+
+      if (action === "open") {
+        openModal(id);
+      }
+    });
+
+    modal.addEventListener("click", (e) => {
+      const action = e.target.dataset.action;
+      if (action === "close") {
+        closeModal();
+        return;
+      }
+      if (action === "save-modal") {
+        if (!openId) return;
+        const { list, idx } = findEntryById(openId);
+        if (idx === -1) return;
+        list[idx].memo = modalMemo.value.trim();
+        saveState();
+        renderList();
+        closeModal();
+      }
+    });
+
+    function lockModalFields() {
+      modalShotAt.disabled = true;
+      modalParams.querySelectorAll("input").forEach((inp) => (inp.disabled = true));
+      modalCapture.querySelectorAll("input").forEach((inp) => (inp.disabled = true));
+    }
+
+    function renderModalParams(item) {
+      if (activeTab !== "product") {
+        modalParams.innerHTML = "";
+        return;
+      }
+      const params = item.params || {};
+      modalParams.innerHTML = `
+        <label style="margin-top:10px;">ホロパラメータ</label>
+        <table class="params-table">
+          <tbody>
+            <tr><th>ホログラムの種類</th><td><input data-modal-param="type" type="text" value="${params.type || ""}" disabled /></td></tr>
+            <tr><th>視差画像枚数</th><td><input data-modal-param="parallaxCount" type="text" value="${params.parallaxCount || ""}" disabled /></td></tr>
+            <tr><th>ホログラムのサイズ (mm)</th><td><input data-modal-param="size" type="text" value="${params.size || ""}" disabled /></td></tr>
+            <tr><th>セグメントサイズ (pixel)</th><td><input data-modal-param="segmentSize" type="text" value="${params.segmentSize || ""}" disabled /></td></tr>
+            <tr><th>ホログラム解像度 (pixel)</th><td><input data-modal-param="resolution" type="text" value="${params.resolution || ""}" disabled /></td></tr>
+            <tr><th>画素ピッチ (μm)</th><td><input data-modal-param="pitch" type="text" value="${params.pitch || ""}" disabled /></td></tr>
+            <tr><th>視点距離 (m)</th><td><input data-modal-param="distance" type="text" value="${params.distance || ""}" disabled /></td></tr>
+            <tr><th>参照光 (rad)</th><td><input data-modal-param="reference" type="text" value="${params.reference || ""}" disabled /></td></tr>
+          </tbody>
+        </table>
+      `;
+    }
+
+    function renderModalCapture(item) {
+      const c = item.captureParams || {};
+      modalCapture.innerHTML = `
+        <label style="margin-top:10px;">撮影パラメータ</label>
+        <table class="params-table">
+          <tbody>
+            <tr><th>レーザーパワー[ｍW]</th><td><input data-modal-capture="laserPower" type="text" value="${c.laserPower || ""}" /></td></tr>
+            <tr><th>露光パワー[μW]</th><td><input data-modal-capture="exposurePower" type="text" value="${c.exposurePower || ""}" /></td></tr>
+            <tr><th>露光パワーの面積[cm2]</th><td><input data-modal-capture="exposureArea" type="text" value="${c.exposureArea || ""}" /></td></tr>
+            <tr><th>セトリング時間[ms]</th><td><input data-modal-capture="settlingTime" type="text" value="${c.settlingTime || ""}" /></td></tr>
+            <tr><th>シャッター時間[μs]</th><td><input data-modal-capture="shutterTime" type="text" value="${c.shutterTime || ""}" /></td></tr>
+            <tr><th>L3-Holoplate間[mm]</th><td><input data-modal-capture="l3Holoplate" type="text" value="${c.l3Holoplate || ""}" /></td></tr>
+          </tbody>
+        </table>
+      `;
+    }
+
+    function renderModalMeasurement(item) {
+      if (activeTab !== "test" || !item.measurement) {
+        modalMeasurement.innerHTML = "";
+        return;
+      }
+      const { mode, rows } = item.measurement;
+      if (mode === "shutter") {
+        modalMeasurement.innerHTML = buildMeasurementView(
+          ["最適露光量[μJ/cm2]", "シャッター時間[μs]", "決定値"],
+          rows,
+          ["e", "shutter", "decision"]
+        );
+      } else {
+        modalMeasurement.innerHTML = buildMeasurementView(["L3-Holoplate間[mm]", "決定値"], rows, ["distance", "decision"]);
+      }
+    }
+
+    function buildMeasurementView(headers, rows, keys) {
+      const thead = `<thead><tr>${headers
+        .map((h, idx) => {
+          const key = keys[idx] || "";
+          const cls = key === "decision" ? ' class="decision-col"' : "";
+          return `<th${cls}>${h}</th>`;
+        })
+        .join("")}</tr></thead>`;
+      const body = (rows || [])
+        .map((row) => {
+          const cells = keys.map((k) => {
+            const val =
+              row[k] !== undefined
+                ? row[k]
+                : row[k === "decision" ? "m3" : k] || row[k === "decision" ? "d2" : k] || "";
+            if (k === "decision") {
+              const active = val === "selected";
+              return `<td class="decision-cell"><span class="decision-dot ${active ? "active" : ""}"></span></td>`;
+            }
+            return `<td>${val}</td>`;
+          });
+          return `<tr>${cells.join("")}</tr>`;
+        })
+        .join("");
+      return `
+        <label style="margin-top:10px;">計測データ</label>
+        <table class="params-table measurement-table">
+          ${thead}
+          <tbody>${body}</tbody>
+        </table>
+      `;
+    }
+
+    renderTabs();
+    renderList();
+    updateNextNumber();
+    toggleParamsBlock();
+    toggleCaptureShutter();
+    updateFormTitle();
+    renderMeasurementTabs();
+  </script>
+</body>
+</html>
