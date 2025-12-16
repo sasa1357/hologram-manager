@@ -245,8 +245,12 @@
         <label for="title">タイトル</label>
         <input id="title" type="text" placeholder="" />
 
-        <label for="shotAt">撮影日</label>
-        <input id="shotAt" type="date" />
+        <label for="shotAt" style="display:flex;align-items:center;gap:8px;">
+          撮影日
+          <button type="button" class="ghost" id="shotAt-calendar" style="padding:6px 10px;">カレンダーで選択</button>
+        </label>
+        <input id="shotAt" type="text" inputmode="numeric" placeholder="例: 2024 / 2024-05 / 2024-05-20" />
+        <input id="shotAtPicker" type="date" style="position:absolute; left:-9999px; top:-9999px; width:1px; height:1px; opacity:0; pointer-events:none;" tabindex="-1" aria-hidden="true" />
 
         <div id="capture-params-block" style="margin-top:10px;">
           <label style="margin-top:4px;">撮影パラメータ</label>
@@ -349,6 +353,8 @@
     const nextNumberEl = document.getElementById("next-number");
     const titleInput = document.getElementById("title");
     const shotAtInput = document.getElementById("shotAt");
+    const shotAtPicker = document.getElementById("shotAtPicker");
+    const shotAtCalendarBtn = document.getElementById("shotAt-calendar");
     const memoInput = document.getElementById("memo");
     const photoInput = document.getElementById("photo");
     const previewEl = document.getElementById("preview");
@@ -417,24 +423,42 @@
       return Math.max(...list.map((e) => e.number || 0)) + 1;
     }
 
-    function formatDate(iso) {
-      if (!iso) return "";
-      const d = new Date(iso);
-      if (isNaN(d.getTime())) return "";
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth() + 1).padStart(2, "0");
-      const dd = String(d.getDate()).padStart(2, "0");
-      return `${yyyy}/${mm}/${dd}`;
+    function formatDate(value) {
+      if (!value) return "";
+      const str = String(value).trim();
+      if (/^\d{4}$/.test(str)) return str;
+      if (/^\d{4}-\d{2}$/.test(str)) return str.replace("-", "/");
+      if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+        const d = new Date(str);
+        if (!isNaN(d.getTime())) {
+          const yyyy = d.getFullYear();
+          const mm = String(d.getMonth() + 1).padStart(2, "0");
+          const dd = String(d.getDate()).padStart(2, "0");
+          return `${yyyy}/${mm}/${dd}`;
+        }
+      }
+      const d = new Date(str);
+      if (!isNaN(d.getTime())) {
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        return `${yyyy}/${mm}/${dd}`;
+      }
+      return str;
     }
 
-    function toInputDate(iso) {
-      if (!iso) return "";
-      const d = new Date(iso);
-      if (isNaN(d.getTime())) return "";
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth() + 1).padStart(2, "0");
-      const dd = String(d.getDate()).padStart(2, "0");
-      return `${yyyy}-${mm}-${dd}`;
+    function toInputDate(value) {
+      if (!value) return "";
+      const str = String(value).trim();
+      if (/^\d{4}(-\d{2}){0,2}$/.test(str)) return str;
+      const d = new Date(str);
+      if (!isNaN(d.getTime())) {
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        return `${yyyy}-${mm}-${dd}`;
+      }
+      return str;
     }
 
     function renderTabs() {
@@ -463,6 +487,7 @@
     function resetForm() {
       titleInput.value = "";
       shotAtInput.value = "";
+      if (shotAtPicker) shotAtPicker.value = "";
       memoInput.value = "";
       photoInput.value = "";
       pendingImage = null;
@@ -500,12 +525,34 @@
     });
 
     uploadBox.addEventListener("click", () => photoInput.click());
+    if (shotAtCalendarBtn && shotAtPicker) {
+      shotAtCalendarBtn.addEventListener("click", () => {
+        const rect = shotAtCalendarBtn.getBoundingClientRect();
+        shotAtPicker.style.left = `${rect.left + window.scrollX}px`;
+        shotAtPicker.style.top = `${rect.bottom + window.scrollY}px`;
+        shotAtPicker.style.pointerEvents = "auto";
+        shotAtPicker.focus();
+        if (shotAtPicker.showPicker) {
+          shotAtPicker.showPicker();
+        } else {
+          shotAtPicker.click();
+        }
+        setTimeout(() => {
+          shotAtPicker.style.pointerEvents = "none";
+          shotAtPicker.style.left = "-9999px";
+          shotAtPicker.style.top = "-9999px";
+        }, 400);
+      });
+      shotAtPicker.addEventListener("change", () => {
+        shotAtInput.value = shotAtPicker.value;
+      });
+    }
     formResetBtn.addEventListener("click", () => resetForm());
 
     saveBtn.addEventListener("click", async () => {
       const title = titleInput.value.trim();
       const memo = memoInput.value.trim();
-      const shotAtRaw = shotAtInput.value;
+      const shotAtRaw = shotAtInput.value.trim();
       const params =
         activeTab === "product"
           ? paramInputs.reduce((acc, input) => {
@@ -523,14 +570,12 @@
         imageData = await fileToDataUrl(photoInput.files[0]);
       }
 
-      const shotAtIso = shotAtRaw ? new Date(shotAtRaw).toISOString() : "";
-
       const entry = {
         id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
         number: nextNumber(),
         title: title || `${tabs.find((t) => t.key === activeTab).label}`,
         memo,
-        shotAt: shotAtIso,
+        shotAt: shotAtRaw,
         params,
         captureParams,
         measurement: collectMeasurement(),
@@ -592,17 +637,24 @@
         const card = document.createElement("div");
         card.className = "card";
         card.dataset.id = item.id;
-        const shotLabel = formatDate(item.shotAt) || "未設定";
+        const shotLabel = formatDate(item.shotAt) || formatDate(item.createdAt) || "未設定";
         const params = item.params || {};
         const paramSummary =
           activeTab === "product"
             ? `<div class="meta">種類: ${params.type || "-"}</div>`
+            : "";
+        const measureLabel =
+          activeTab === "test" && item.measurement
+            ? item.measurement.mode === "distance"
+              ? "L3-Holoplate間計測"
+              : "シャッター時間計測"
             : "";
         card.innerHTML = `
           <div class="top">
             <div>
               <div class="badge">#${item.number} ${item.title || "(無題)"}</div>
               <div class="meta">撮影日: ${shotLabel}</div>
+              ${measureLabel ? `<div class="meta">${measureLabel}</div>` : ""}
               ${paramSummary}
             </div>
             <button class="ghost" data-action="delete">削除</button>
@@ -810,7 +862,7 @@
         closeModal();
         return;
       }
-      if (action === "save-modal") {
+        if (action === "save-modal") {
         if (!openId) return;
         const { list, idx } = findEntryById(openId);
         if (idx === -1) return;
