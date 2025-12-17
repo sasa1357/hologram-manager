@@ -249,7 +249,7 @@
           撮影日
           <button type="button" class="ghost" id="shotAt-calendar" style="padding:6px 10px;">カレンダーで選択</button>
         </label>
-        <input id="shotAt" type="text" inputmode="numeric" placeholder="例: 2024 / 2024-05 / 2024-05-20" />
+        <input id="shotAt" type="text" inputmode="numeric" placeholder="例: 2024 / 2024-11 / 2024-11-10" />
         <input id="shotAtPicker" type="date" style="position:absolute; left:-9999px; top:-9999px; width:1px; height:1px; opacity:0; pointer-events:none;" tabindex="-1" aria-hidden="true" />
 
         <div id="capture-params-block" style="margin-top:10px;">
@@ -322,7 +322,7 @@
         <div class="badge" id="modal-badge"></div>
         <div class="meta" id="modal-meta" style="margin-top:4px;"></div>
         <label for="modal-shotAt">撮影日</label>
-        <input id="modal-shotAt" type="date" />
+        <input id="modal-shotAt" type="text" placeholder="" />
         <div id="modal-capture"></div>
         <div id="modal-measurement"></div>
         <div id="modal-params"></div>
@@ -426,22 +426,26 @@
     function formatDate(value) {
       if (!value) return "";
       const str = String(value).trim();
-      if (/^\d{4}$/.test(str)) return str;
-      if (/^\d{4}-\d{2}$/.test(str)) return str.replace("-", "/");
-      if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
-        const d = new Date(str);
-        if (!isNaN(d.getTime())) {
-          const yyyy = d.getFullYear();
-          const mm = String(d.getMonth() + 1).padStart(2, "0");
-          const dd = String(d.getDate()).padStart(2, "0");
-          return `${yyyy}/${mm}/${dd}`;
-        }
+      const yOnly = /^(\d{4})$/;
+      const yM = /^(\d{4})[-/](\d{1,2})$/;
+      const yMd = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/;
+      if (yOnly.test(str)) {
+        const [, y] = str.match(yOnly);
+        return y;
       }
-      const d = new Date(str);
-      if (!isNaN(d.getTime())) {
-        const yyyy = d.getFullYear();
-        const mm = String(d.getMonth() + 1).padStart(2, "0");
-        const dd = String(d.getDate()).padStart(2, "0");
+      if (yM.test(str)) {
+        const [, y, m] = str.match(yM);
+        return `${y}/${m.padStart(2, "0")}`;
+      }
+      if (yMd.test(str)) {
+        const [, y, m, d] = str.match(yMd);
+        return `${y}/${m.padStart(2, "0")}/${d.padStart(2, "0")}`;
+      }
+      const dObj = new Date(str);
+      if (!isNaN(dObj.getTime())) {
+        const yyyy = dObj.getFullYear();
+        const mm = String(dObj.getMonth() + 1).padStart(2, "0");
+        const dd = String(dObj.getDate()).padStart(2, "0");
         return `${yyyy}/${mm}/${dd}`;
       }
       return str;
@@ -450,13 +454,48 @@
     function toInputDate(value) {
       if (!value) return "";
       const str = String(value).trim();
-      if (/^\d{4}(-\d{2}){0,2}$/.test(str)) return str;
-      const d = new Date(str);
-      if (!isNaN(d.getTime())) {
-        const yyyy = d.getFullYear();
-        const mm = String(d.getMonth() + 1).padStart(2, "0");
-        const dd = String(d.getDate()).padStart(2, "0");
+      const yOnly = /^(\d{4})$/;
+      const yM = /^(\d{4})[-/](\d{1,2})$/;
+      const yMd = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/;
+      if (yOnly.test(str)) {
+        const [, y] = str.match(yOnly);
+        return y;
+      }
+      if (yM.test(str)) {
+        const [, y, m] = str.match(yM);
+        return `${y}-${m.padStart(2, "0")}`;
+      }
+      if (yMd.test(str)) {
+        const [, y, m, d] = str.match(yMd);
+        return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+      }
+      const dObj = new Date(str);
+      if (!isNaN(dObj.getTime())) {
+        const yyyy = dObj.getFullYear();
+        const mm = String(dObj.getMonth() + 1).padStart(2, "0");
+        const dd = String(dObj.getDate()).padStart(2, "0");
         return `${yyyy}-${mm}-${dd}`;
+      }
+      return str;
+    }
+
+    function normalizeShotAt(value) {
+      if (!value) return "";
+      const str = String(value).trim();
+      const yOnly = /^(\d{4})$/;
+      const yM = /^(\d{4})[-/](\d{1,2})$/;
+      const yMd = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/;
+      if (yOnly.test(str)) {
+        const [, y] = str.match(yOnly);
+        return y;
+      }
+      if (yM.test(str)) {
+        const [, y, m] = str.match(yM);
+        return `${y}-${m.padStart(2, "0")}`;
+      }
+      if (yMd.test(str)) {
+        const [, y, m, d] = str.match(yMd);
+        return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
       }
       return str;
     }
@@ -525,8 +564,18 @@
     });
 
     uploadBox.addEventListener("click", () => photoInput.click());
+    let shotAtScrollPos = 0;
     if (shotAtCalendarBtn && shotAtPicker) {
+      const hidePicker = () => {
+        shotAtPicker.style.pointerEvents = "none";
+        shotAtPicker.style.left = "-9999px";
+        shotAtPicker.style.top = "-9999px";
+        window.scrollTo({ top: shotAtScrollPos });
+        shotAtCalendarBtn.focus({ preventScroll: true });
+      };
+
       shotAtCalendarBtn.addEventListener("click", () => {
+        shotAtScrollPos = window.scrollY || document.documentElement.scrollTop || 0;
         const rect = shotAtCalendarBtn.getBoundingClientRect();
         shotAtPicker.style.left = `${rect.left + window.scrollX}px`;
         shotAtPicker.style.top = `${rect.bottom + window.scrollY}px`;
@@ -537,14 +586,13 @@
         } else {
           shotAtPicker.click();
         }
-        setTimeout(() => {
-          shotAtPicker.style.pointerEvents = "none";
-          shotAtPicker.style.left = "-9999px";
-          shotAtPicker.style.top = "-9999px";
-        }, 400);
       });
       shotAtPicker.addEventListener("change", () => {
         shotAtInput.value = shotAtPicker.value;
+        hidePicker();
+      });
+      shotAtPicker.addEventListener("blur", () => {
+        if (shotAtPicker.style.pointerEvents === "auto") hidePicker();
       });
     }
     formResetBtn.addEventListener("click", () => resetForm());
@@ -553,6 +601,7 @@
       const title = titleInput.value.trim();
       const memo = memoInput.value.trim();
       const shotAtRaw = shotAtInput.value.trim();
+      const shotAtNormalized = normalizeShotAt(shotAtRaw);
       const params =
         activeTab === "product"
           ? paramInputs.reduce((acc, input) => {
@@ -570,12 +619,15 @@
         imageData = await fileToDataUrl(photoInput.files[0]);
       }
 
+      const shotDisplay = shotAtNormalized ? formatDate(shotAtNormalized) : "ー";
+
       const entry = {
         id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
         number: nextNumber(),
         title: title || `${tabs.find((t) => t.key === activeTab).label}`,
         memo,
-        shotAt: shotAtRaw,
+        shotAt: shotAtNormalized,
+        shotDisplay,
         params,
         captureParams,
         measurement: collectMeasurement(),
@@ -637,7 +689,11 @@
         const card = document.createElement("div");
         card.className = "card";
         card.dataset.id = item.id;
-        const shotLabel = formatDate(item.shotAt) || formatDate(item.createdAt) || "未設定";
+        const shotLabel =
+          item.shotDisplay ||
+          formatDate(item.shotAt) ||
+          formatDate(item.createdAt) ||
+          "ー";
         const params = item.params || {};
         const paramSummary =
           activeTab === "product"
@@ -723,7 +779,7 @@
           const presetCol = columnPreset[colIdx] || [];
           const val = presetCol[rowIdx] !== undefined ? presetCol[rowIdx] : "";
           const key = colKeys[colIdx] || "";
-          const readonly = key === "e" ? "readonly" : "";
+          const readonly = "";
           if (key === "decision") {
             const active = val === "selected";
             return `<td class="decision-cell"><span class="decision-dot ${active ? "active" : ""}" data-decision="true"></span><input type="hidden" data-measure-key="${key}" value="${val || ""}" /></td>`;
@@ -806,7 +862,11 @@
       modalBadge.textContent = `#${item.number} ${item.title || "(無題)"}`;
       modalMeta.textContent = "";
       modalMemo.value = item.memo || "";
-      modalShotAt.value = toInputDate(item.shotAt || item.createdAt);
+      modalShotAt.value =
+        item.shotDisplay ||
+        formatDate(item.shotAt) ||
+        formatDate(item.createdAt) ||
+        "ー";
       renderModalParams(item);
       renderModalCapture(item);
       renderModalMeasurement(item);
@@ -845,6 +905,8 @@
       if (idx === -1) return;
 
       if (action === "delete") {
+        const ok = window.confirm("このカードを削除しますか？");
+        if (!ok) return;
         list.splice(idx, 1);
         saveState();
         renderList();
