@@ -110,6 +110,7 @@
       cursor: pointer; transition: border-color 0.2s ease, background 0.2s ease;
     }
     .upload:hover { border-color: rgba(0,0,0,0.25); background: rgba(0,0,0,0.04); }
+    .upload.dragover { border-color: #2a78ff; background: rgba(42,120,255,0.08); }
     .upload input { display: none; }
     .upload img {
       width: 100%; max-height: 180px; object-fit: cover; border-radius: 10px;
@@ -318,7 +319,7 @@
       <div class="modal__content">
       <button class="modal__close" data-action="close">×</button>
       <div class="modal__image" id="modal-image-box">画像なし</div>
-      <div class="modal__fields">
+        <div class="modal__fields">
         <div class="badge" id="modal-badge"></div>
         <div class="meta" id="modal-meta" style="margin-top:4px;"></div>
         <label for="modal-shotAt">撮影日</label>
@@ -329,6 +330,7 @@
         <label for="modal-memo">メモ</label>
         <textarea id="modal-memo" placeholder=""></textarea>
         <div class="modal__actions">
+          <button class="ghost" data-action="copy-holo-latex">ホロパラメータをLaTeXコピー</button>
           <button class="ghost" data-action="save-modal">更新</button>
         </div>
       </div>
@@ -383,6 +385,7 @@
     const modalParams = document.getElementById("modal-params");
     const modalCapture = document.getElementById("modal-capture");
     const modalMeasurement = document.getElementById("modal-measurement");
+    const modalCopyHoloBtn = document.querySelector('[data-action="copy-holo-latex"]');
 
     function loadState() {
       try {
@@ -555,15 +558,36 @@
       });
     }
 
-    photoInput.addEventListener("change", async (e) => {
-      const file = e.target.files[0];
+    async function setPendingImage(file) {
       if (!file) return;
+      if (file.type && !file.type.startsWith("image/")) {
+        alert("画像ファイルを選択してください。");
+        return;
+      }
       pendingImage = await fileToDataUrl(file);
       previewEl.src = pendingImage;
       uploadBox.classList.add("has-image");
+    }
+
+    photoInput.addEventListener("change", async (e) => {
+      await setPendingImage(e.target.files[0]);
     });
 
     uploadBox.addEventListener("click", () => photoInput.click());
+    uploadBox.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      uploadBox.classList.add("dragover");
+    });
+    uploadBox.addEventListener("dragleave", (e) => {
+      e.preventDefault();
+      uploadBox.classList.remove("dragover");
+    });
+    uploadBox.addEventListener("drop", async (e) => {
+      e.preventDefault();
+      uploadBox.classList.remove("dragover");
+      const file = e.dataTransfer?.files?.[0];
+      await setPendingImage(file);
+    });
     let shotAtScrollPos = 0;
     if (shotAtCalendarBtn && shotAtPicker) {
       const hidePicker = () => {
@@ -673,6 +697,93 @@
       });
       applyShutterPlaceholder();
       renderMeasurementTable();
+    }
+
+    function escapeLatex(value) {
+      if (value === null || value === undefined || value === "") return "-";
+      return String(value)
+        .replace(/\\/g, "\\textbackslash{}")
+        .replace(/%/g, "\\%")
+        .replace(/&/g, "\\&")
+        .replace(/\$/g, "\\$")
+        .replace(/#/g, "\\#")
+        .replace(/_/g, "\\_")
+        .replace(/{/g, "\\{")
+        .replace(/}/g, "\\}")
+        .replace(/~/g, "\\textasciitilde{}")
+        .replace(/\^/g, "\\textasciicircum{}")
+        .replace(/\r?\n/g, " ");
+    }
+
+    function buildHoloParamsLatex(item) {
+      const p = item.params || {};
+      const rows = [
+        ["ホログラムの種類", p.type],
+        ["視差画像枚数", p.parallaxCount],
+        ["ホログラムのサイズ (mm)", p.size],
+        ["セグメントサイズ (pixel)", p.segmentSize],
+        ["ホログラム解像度 (pixel)", p.resolution],
+        ["画素ピッチ ({\\textmu}m)", p.pitch],
+        ["視点距離 (m)", p.distance],
+        ["参照光 (rad)", p.reference],
+      ];
+      const filledRows = rows.filter(([, val]) => val !== undefined && val !== null && String(val).trim() !== "");
+      const body =
+        filledRows.length > 0
+          ? filledRows.map(([label, val]) => `${label} & ${escapeLatex(val)} \\\\`).join("\n\\hline\n")
+          : "\\multicolumn{2}{|c|}{データなし} \\\\";
+      return (
+        "\\begin{table}[h]\n" +
+        "\\centering\n" +
+        "\\caption{ホログラムのパラメータ}\n" +
+        "\\label{tab:holo-params}\n" +
+        "\\begin{tabular}{|c|c|}\n" +
+        "\\hline\n" +
+        body +
+        "\n\\hline\n" +
+        "\\end{tabular}\n" +
+        "\\end{table}"
+      );
+    }
+
+    async function copyTextToClipboard(text) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        try {
+          await navigator.clipboard.writeText(text);
+          return true;
+        } catch (e) {}
+      }
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      let success = false;
+      try {
+        success = document.execCommand("copy");
+      } catch (e) {
+        success = false;
+      }
+      document.body.removeChild(textarea);
+      return success;
+    }
+
+    async function copyHoloLatex() {
+      if (activeTab !== "product") {
+        alert("ホロパラメータは作成ホログラムタブのみコピーできます。");
+        return;
+      }
+      if (!openId) return;
+      const { item } = findEntryById(openId);
+      if (!item) return;
+      const latex = buildHoloParamsLatex(item);
+      const ok = await copyTextToClipboard(latex);
+      if (ok) {
+        alert("ホロパラメータのLaTeXをコピーしました。");
+      } else {
+        alert("コピーに失敗しました。手動でコピーしてください。");
+      }
     }
 
     function renderList() {
@@ -876,6 +987,9 @@
       } else {
         modalImageBox.textContent = "画像なし";
       }
+      if (modalCopyHoloBtn) {
+        modalCopyHoloBtn.style.display = activeTab === "product" ? "inline-flex" : "none";
+      }
       modal.dataset.open = "true";
       modal.setAttribute("aria-hidden", "false");
       modal.classList.remove("hidden");
@@ -924,7 +1038,11 @@
         closeModal();
         return;
       }
-        if (action === "save-modal") {
+      if (action === "copy-holo-latex") {
+        copyHoloLatex();
+        return;
+      }
+      if (action === "save-modal") {
         if (!openId) return;
         const { list, idx } = findEntryById(openId);
         if (idx === -1) return;
