@@ -105,6 +105,7 @@
     }
     .number-pill strong { color: var(--text); font-size: 18px; }
     .upload {
+      position: relative;
       border: 1px dashed var(--border); border-radius: 12px; padding: 14px;
       background: rgba(0, 0, 0, 0.02); text-align: center;
       cursor: pointer; transition: border-color 0.2s ease, background 0.2s ease;
@@ -117,6 +118,24 @@
       margin-bottom: 8px; display: none;
     }
     .upload.has-image img { display: block; }
+    .upload .remove-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      border: none;
+      background: rgba(0,0,0,0.6);
+      color: #fff;
+      border-radius: 50%;
+      width: 28px;
+      height: 28px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-weight: 700;
+      transition: opacity 0.15s ease;
+    }
+    .upload:hover .remove-btn { display: inline-flex; }
     .btn {
       width: 100%; border: none; border-radius: 10px; padding: 12px 14px;
       color: #0b0e15; font-weight: 700; font-size: 15px; cursor: pointer;
@@ -126,6 +145,7 @@
     .btn:active { transform: translateY(0); }
     .list {
       display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px;
+      max-height: 1175px; overflow-y: auto; padding-right: 4px;
     }
     @media (max-width: 1100px) { .list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 700px) { .list { grid-template-columns: 1fr; } }
@@ -226,6 +246,47 @@
     .modal__fields label { margin-top: 10px; }
     .modal__fields textarea { min-height: 180px; }
     .modal__actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
+
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      background: #111;
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 10px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      pointer-events: none;
+      font-size: 13px;
+      z-index: 2000;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .pagination {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 0;
+    }
+    .top .pagination { margin-left: auto; }
+    .pagination button {
+      border: 1px solid var(--border);
+      background: transparent;
+      border-radius: 8px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .pagination button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
   </style>
 </head>
 <body>
@@ -280,10 +341,9 @@
           <table class="params-table">
             <tbody id="param-rows">
               <tr><th>ホログラムの種類</th><td><input data-param="type" type="text" placeholder="" /></td></tr>
-              <tr><th>視差画像枚数</th><td><input data-param="parallaxCount" type="text" placeholder="" /></td></tr>
+              <tr><th>視点数 (Viewpoints)</th><td><input data-param="parallaxCount" type="text" placeholder="" /></td></tr>
               <tr><th>ホログラムのサイズ (mm)</th><td><input data-param="size" type="text" placeholder="" /></td></tr>
-              <tr><th>セグメントサイズ (pixel)</th><td><input data-param="segmentSize" type="text" placeholder="" /></td></tr>
-              <tr><th>ホログラム解像度 (pixel)</th><td><input data-param="resolution" type="text" placeholder="" /></td></tr>
+              <tr><th>解像度 (pixel)</th><td><input data-param="resolution" type="text" placeholder="" /></td></tr>
               <tr><th>画素ピッチ (μm)</th><td><input data-param="pitch" type="text" placeholder="" /></td></tr>
               <tr><th>視点距離 (m)</th><td><input data-param="distance" type="text" placeholder="" /></td></tr>
               <tr><th>参照光 (rad)</th><td><input data-param="reference" type="text" placeholder="" /></td></tr>
@@ -294,20 +354,36 @@
         <label for="memo">メモ</label>
         <textarea id="memo" placeholder=""></textarea>
 
-        <label>写真</label>
-        <div class="upload" id="upload-box">
-          <img id="preview" alt="preview" />
+        <label>写真1</label>
+        <div class="upload" id="upload-box-1" data-upload-box="1">
+          <button type="button" class="remove-btn" data-remove-slot="1">×</button>
+          <img id="preview-1" alt="preview-1" />
           <div>ここをクリックして写真を選択</div>
-          <input type="file" id="photo" accept="image/*" />
+          <input type="file" id="photo-1" accept="image/*" />
+        </div>
+
+        <label>写真2</label>
+        <div class="upload" id="upload-box-2" data-upload-box="2">
+          <button type="button" class="remove-btn" data-remove-slot="2">×</button>
+          <img id="preview-2" alt="preview-2" />
+          <div>ここをクリックして写真を選択</div>
+          <input type="file" id="photo-2" accept="image/*" />
         </div>
 
         <button class="btn" id="save-btn">保存</button>
       </section>
 
       <section class="panel">
-        <div class="top" style="margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; gap:8px;">
-          <h2 style="margin:0;" id="list-title">露光テスト結果一覧</h2>
-          <div class="meta" id="count-label"></div>
+        <div class="top" style="margin-bottom:8px; display:flex; align-items:center; gap:8px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <h2 style="margin:0;" id="list-title">露光テスト結果一覧</h2>
+            <div class="meta" id="count-label"></div>
+          </div>
+          <div class="pagination" id="pagination">
+            <button type="button" id="page-prev">前へ</button>
+            <div class="meta" id="page-info"></div>
+            <button type="button" id="page-next">次へ</button>
+          </div>
         </div>
         <div class="list" id="list"></div>
       </section>
@@ -336,6 +412,7 @@
       </div>
     </div>
   </div>
+  <div class="toast" id="toast" aria-live="polite"></div>
 
   <script>
     const tabs = [
@@ -343,11 +420,13 @@
       { key: "product", label: "作成ホログラム", color: getComputedStyle(document.documentElement).getPropertyValue("--accent-prod") },
     ];
 
+    const pageSize = 12;
     const stateKey = "holo-manager-entries";
     const activeTabKey = "holo-active-tab";
     let state = loadState();
     let activeTab = loadActiveTab() || tabs[0].key;
-    let pendingImage = null;
+    let pageByTab = { test: 1, product: 1 };
+    let pendingImages = { 1: null, 2: null };
     let openId = null;
     let measurementMode = "shutter";
 
@@ -358,13 +437,18 @@
     const shotAtPicker = document.getElementById("shotAtPicker");
     const shotAtCalendarBtn = document.getElementById("shotAt-calendar");
     const memoInput = document.getElementById("memo");
-    const photoInput = document.getElementById("photo");
-    const previewEl = document.getElementById("preview");
-    const uploadBox = document.getElementById("upload-box");
+    const photoInputs = [1, 2].map((n) => document.getElementById(`photo-${n}`));
+    const previewEls = [1, 2].map((n) => document.getElementById(`preview-${n}`));
+    const uploadBoxes = [1, 2].map((n) => document.getElementById(`upload-box-${n}`));
     const saveBtn = document.getElementById("save-btn");
     const listEl = document.getElementById("list");
     const countLabel = document.getElementById("count-label");
     const listTitle = document.getElementById("list-title");
+    const pageInfo = document.getElementById("page-info");
+    const pagePrevBtn = document.getElementById("page-prev");
+    const pageNextBtn = document.getElementById("page-next");
+    const formPanel = document.getElementById("form-panel");
+    const listPanel = listEl ? listEl.closest(".panel") : null;
     const formTitle = document.getElementById("form-title");
     const formResetBtn = document.getElementById("form-reset");
     const productParamsBlock = document.getElementById("product-params-block");
@@ -386,6 +470,10 @@
     const modalCapture = document.getElementById("modal-capture");
     const modalMeasurement = document.getElementById("modal-measurement");
     const modalCopyHoloBtn = document.querySelector('[data-action="copy-holo-latex"]');
+    const toast = document.getElementById("toast");
+    const removeButtons = Array.from(document.querySelectorAll("[data-remove-slot]"));
+    let toastTimer = null;
+    const listHeightByTab = { test: 1510, product: 1175 };
 
     function loadState() {
       try {
@@ -512,6 +600,7 @@
         btn.innerHTML = `<span class="dot" style="background:${tab.color}"></span>${tab.label}`;
         btn.onclick = () => {
           activeTab = tab.key;
+          pageByTab[activeTab] = 1;
           saveActiveTab(activeTab);
           resetForm();
           updateNextNumber();
@@ -531,10 +620,14 @@
       shotAtInput.value = "";
       if (shotAtPicker) shotAtPicker.value = "";
       memoInput.value = "";
-      photoInput.value = "";
-      pendingImage = null;
-      previewEl.src = "";
-      uploadBox.classList.remove("has-image");
+      pendingImages = { 1: null, 2: null };
+      photoInputs.forEach((inp) => {
+        if (inp) inp.value = "";
+      });
+      previewEls.forEach((img) => {
+        if (img) img.src = "";
+      });
+      uploadBoxes.forEach((box) => box && box.classList.remove("has-image"));
       paramInputs.forEach((inp) => (inp.value = ""));
       captureInputs.forEach((inp) => (inp.value = ""));
       measurementMode = "shutter";
@@ -558,35 +651,64 @@
       });
     }
 
-    async function setPendingImage(file) {
+    async function setPendingImage(file, slot) {
       if (!file) return;
       if (file.type && !file.type.startsWith("image/")) {
         alert("画像ファイルを選択してください。");
         return;
       }
-      pendingImage = await fileToDataUrl(file);
-      previewEl.src = pendingImage;
-      uploadBox.classList.add("has-image");
+      const dataUrl = await fileToDataUrl(file);
+      pendingImages[slot] = dataUrl;
+      const preview = previewEls[slot - 1];
+      const box = uploadBoxes[slot - 1];
+      if (preview) preview.src = dataUrl;
+      if (box) box.classList.add("has-image");
     }
 
-    photoInput.addEventListener("change", async (e) => {
-      await setPendingImage(e.target.files[0]);
+    function clearImage(slot) {
+      pendingImages[slot] = null;
+      const preview = previewEls[slot - 1];
+      const box = uploadBoxes[slot - 1];
+      const input = photoInputs[slot - 1];
+      if (preview) preview.src = "";
+      if (box) box.classList.remove("has-image");
+      if (input) input.value = "";
+    }
+
+    photoInputs.forEach((input, idx) => {
+      if (!input) return;
+      const slot = idx + 1;
+      input.addEventListener("change", async (e) => {
+        await setPendingImage(e.target.files[0], slot);
+      });
     });
 
-    uploadBox.addEventListener("click", () => photoInput.click());
-    uploadBox.addEventListener("dragover", (e) => {
-      e.preventDefault();
-      uploadBox.classList.add("dragover");
+    uploadBoxes.forEach((box, idx) => {
+      if (!box) return;
+      const slot = idx + 1;
+      box.addEventListener("click", () => photoInputs[idx]?.click());
+      box.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        box.classList.add("dragover");
+      });
+      box.addEventListener("dragleave", (e) => {
+        e.preventDefault();
+        box.classList.remove("dragover");
+      });
+      box.addEventListener("drop", async (e) => {
+        e.preventDefault();
+        box.classList.remove("dragover");
+        const file = e.dataTransfer?.files?.[0];
+        await setPendingImage(file, slot);
+      });
     });
-    uploadBox.addEventListener("dragleave", (e) => {
-      e.preventDefault();
-      uploadBox.classList.remove("dragover");
-    });
-    uploadBox.addEventListener("drop", async (e) => {
-      e.preventDefault();
-      uploadBox.classList.remove("dragover");
-      const file = e.dataTransfer?.files?.[0];
-      await setPendingImage(file);
+
+    removeButtons.forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const slot = Number(btn.dataset.removeSlot);
+        clearImage(slot);
+      });
     });
     let shotAtScrollPos = 0;
     if (shotAtCalendarBtn && shotAtPicker) {
@@ -637,10 +759,14 @@
         acc[input.dataset.capture] = input.value.trim();
         return acc;
       }, {});
-      let imageData = pendingImage;
-
-      if (photoInput.files[0] && !imageData) {
-        imageData = await fileToDataUrl(photoInput.files[0]);
+      const imageData = {};
+      for (let slot = 1; slot <= 2; slot++) {
+        const input = photoInputs[slot - 1];
+        let img = pendingImages[slot];
+        if (input && input.files && input.files[0] && !img) {
+          img = await fileToDataUrl(input.files[0]);
+        }
+        imageData[slot] = img || "";
       }
 
       const shotDisplay = shotAtNormalized ? formatDate(shotAtNormalized) : "ー";
@@ -655,13 +781,15 @@
         params,
         captureParams,
         measurement: collectMeasurement(),
-        image: imageData || "",
+        image1: imageData[1],
+        image2: imageData[2],
         createdAt: new Date().toISOString(),
       };
 
       const list = entries();
       list.unshift(entry);
       saveState();
+      pageByTab[activeTab] = 1;
       renderList();
       updateNextNumber();
     });
@@ -699,6 +827,20 @@
       renderMeasurementTable();
     }
 
+    function adjustListHeight() {
+      if (!listEl) return;
+      const isThreeCols = !window.matchMedia("(max-width: 1100px)").matches;
+      if (isThreeCols) {
+        listEl.style.maxHeight = "none";
+        listEl.style.overflowY = "visible";
+      } else {
+        // 固定高さでスクロールを維持し、タブ切替後も高さが変わらないようにする
+        const h = listHeightByTab[activeTab] || 1175;
+        listEl.style.maxHeight = `${h}px`;
+        listEl.style.overflowY = "auto";
+      }
+    }
+
     function escapeLatex(value) {
       if (value === null || value === undefined || value === "") return "-";
       return String(value)
@@ -715,14 +857,32 @@
         .replace(/\r?\n/g, " ");
     }
 
+    function formatLatexValue(value) {
+      if (value === null || value === undefined || value === "") return "-";
+      const str = String(value).trim();
+      const removeComma = (s) => s.replace(/[,\uFF0C]/g, "");
+      const formatNumber = (s) => {
+        const [intPart, decPart] = s.split(".");
+        const intWithComma = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        return decPart ? `${intWithComma}.${decPart}` : intWithComma;
+      };
+
+      const cleaned = removeComma(str);
+      const isNumeric = /^[-+]?\d+(?:\.\d+)?$/.test(cleaned);
+      if (cleaned && isNumeric) {
+        return escapeLatex(formatNumber(cleaned));
+      }
+
+      const replaced = cleaned.replace(/\d+(?:\.\d+)?/g, (m) => formatNumber(m));
+      return escapeLatex(replaced);
+    }
+
     function buildHoloParamsLatex(item) {
       const p = item.params || {};
       const rows = [
-        ["ホログラムの種類", p.type],
-        ["視差画像枚数", p.parallaxCount],
+        ["視点数 (Viewpoints)", p.parallaxCount],
         ["ホログラムのサイズ (mm)", p.size],
-        ["セグメントサイズ (pixel)", p.segmentSize],
-        ["ホログラム解像度 (pixel)", p.resolution],
+        ["解像度 (pixel)", p.resolution],
         ["画素ピッチ ({\\textmu}m)", p.pitch],
         ["視点距離 (m)", p.distance],
         ["参照光 (rad)", p.reference],
@@ -730,7 +890,7 @@
       const filledRows = rows.filter(([, val]) => val !== undefined && val !== null && String(val).trim() !== "");
       const body =
         filledRows.length > 0
-          ? filledRows.map(([label, val]) => `${label} & ${escapeLatex(val)} \\\\`).join("\n\\hline\n")
+          ? filledRows.map(([label, val]) => `${label} & ${formatLatexValue(val)} \\\\`).join("\n\\hline\n")
           : "\\multicolumn{2}{|c|}{データなし} \\\\";
       return (
         "\\begin{table}[h]\n" +
@@ -780,7 +940,7 @@
       const latex = buildHoloParamsLatex(item);
       const ok = await copyTextToClipboard(latex);
       if (ok) {
-        alert("ホロパラメータのLaTeXをコピーしました。");
+        showToast("ホロパラメータをコピーしました");
       } else {
         alert("コピーに失敗しました。手動でコピーしてください。");
       }
@@ -790,13 +950,21 @@
       const list = entries();
       listTitle.textContent = activeTab === "test" ? "露光テスト結果一覧" : "作成ホログラム一覧";
       countLabel.textContent = `${list.length} 件`;
+      const totalPages = Math.max(1, Math.ceil(list.length / pageSize));
+      let page = pageByTab[activeTab] || 1;
+      if (page > totalPages) page = totalPages;
+      if (page < 1) page = 1;
+      pageByTab[activeTab] = page;
+      const startIdx = (page - 1) * pageSize;
+      const sliced = list.slice(startIdx, startIdx + pageSize);
+
       if (!list.length) {
         listEl.innerHTML = `<div class="meta" style="grid-column: 1 / -1;">まだ登録がありません。</div>`;
-        return;
-      }
-
-      listEl.innerHTML = "";
-      list.forEach((item) => {
+      } else if (!sliced.length) {
+        listEl.innerHTML = `<div class="meta" style="grid-column: 1 / -1;">ページにデータがありません。</div>`;
+      } else {
+        listEl.innerHTML = "";
+        sliced.forEach((item) => {
         const card = document.createElement("div");
         card.className = "card";
         card.dataset.id = item.id;
@@ -816,6 +984,7 @@
               ? "L3-Holoplate間計測"
               : "シャッター時間計測"
             : "";
+        const mainImage = item.image1 || item.image || item.image2 || "";
         card.innerHTML = `
           <div class="top">
             <div>
@@ -826,13 +995,19 @@
             </div>
             <button class="ghost" data-action="delete">削除</button>
           </div>
-          <div class="thumb">${item.image ? `<img src="${item.image}" alt="photo" />` : "写真なし"}</div>
+          <div class="thumb">${mainImage ? `<img src="${mainImage}" alt="photo" />` : "写真なし"}</div>
           <div class="actions">
             <button class="ghost" data-action="open">開く</button>
           </div>
         `;
         listEl.appendChild(card);
       });
+      }
+
+      if (pageInfo) pageInfo.textContent = `${page} / ${totalPages}`;
+      if (pagePrevBtn) pagePrevBtn.disabled = page <= 1;
+      if (pageNextBtn) pageNextBtn.disabled = page >= totalPages;
+      adjustListHeight();
     }
 
     measurementTabs.addEventListener("click", (e) => {
@@ -982,8 +1157,23 @@
       renderModalCapture(item);
       renderModalMeasurement(item);
       lockModalFields();
-      if (item.image) {
-        modalImageBox.innerHTML = `<img src="${item.image}" alt="photo" />`;
+      const modalImg1 = item.image1 || item.image || "";
+      const modalImg2 = item.image2 || "";
+      if (modalImg1 || modalImg2) {
+        const renderImg = (src, label) => `
+          <div style="display:grid; gap:6px;">
+            <div class="meta">${label}</div>
+            <div style="background:#f5f6f8;border:1px solid var(--border);border-radius:10px;min-height:200px;display:grid;place-items:center;overflow:hidden;">
+              <img src="${src}" alt="${label}" style="width:100%;height:100%;object-fit:contain;" />
+            </div>
+          </div>
+        `;
+        modalImageBox.innerHTML = `
+          <div style="display:grid; gap:10px; width:100%;">
+            ${modalImg1 ? renderImg(modalImg1, "写真1") : ""}
+            ${modalImg2 ? renderImg(modalImg2, "写真2") : ""}
+          </div>
+        `;
       } else {
         modalImageBox.textContent = "画像なし";
       }
@@ -1032,6 +1222,25 @@
       }
     });
 
+    if (pagePrevBtn && pageNextBtn) {
+      pagePrevBtn.addEventListener("click", () => {
+        const current = pageByTab[activeTab] || 1;
+        if (current > 1) {
+          pageByTab[activeTab] = current - 1;
+          renderList();
+        }
+      });
+      pageNextBtn.addEventListener("click", () => {
+        const list = entries();
+        const totalPages = Math.max(1, Math.ceil(list.length / pageSize));
+        const current = pageByTab[activeTab] || 1;
+        if (current < totalPages) {
+          pageByTab[activeTab] = current + 1;
+          renderList();
+        }
+      });
+    }
+
     modal.addEventListener("click", (e) => {
       const action = e.target.dataset.action;
       if (action === "close") {
@@ -1070,10 +1279,9 @@
         <table class="params-table">
           <tbody>
             <tr><th>ホログラムの種類</th><td><input data-modal-param="type" type="text" value="${params.type || ""}" disabled /></td></tr>
-            <tr><th>視差画像枚数</th><td><input data-modal-param="parallaxCount" type="text" value="${params.parallaxCount || ""}" disabled /></td></tr>
+            <tr><th>視点数 (Viewpoints)</th><td><input data-modal-param="parallaxCount" type="text" value="${params.parallaxCount || ""}" disabled /></td></tr>
             <tr><th>ホログラムのサイズ (mm)</th><td><input data-modal-param="size" type="text" value="${params.size || ""}" disabled /></td></tr>
-            <tr><th>セグメントサイズ (pixel)</th><td><input data-modal-param="segmentSize" type="text" value="${params.segmentSize || ""}" disabled /></td></tr>
-            <tr><th>ホログラム解像度 (pixel)</th><td><input data-modal-param="resolution" type="text" value="${params.resolution || ""}" disabled /></td></tr>
+            <tr><th>解像度 (pixel)</th><td><input data-modal-param="resolution" type="text" value="${params.resolution || ""}" disabled /></td></tr>
             <tr><th>画素ピッチ (μm)</th><td><input data-modal-param="pitch" type="text" value="${params.pitch || ""}" disabled /></td></tr>
             <tr><th>視点距離 (m)</th><td><input data-modal-param="distance" type="text" value="${params.distance || ""}" disabled /></td></tr>
             <tr><th>参照光 (rad)</th><td><input data-modal-param="reference" type="text" value="${params.reference || ""}" disabled /></td></tr>
@@ -1149,6 +1357,16 @@
       `;
     }
 
+    function showToast(message) {
+      if (!toast) return;
+      toast.textContent = message;
+      toast.classList.add("show");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toast.classList.remove("show");
+      }, 1800);
+    }
+
     renderTabs();
     renderList();
     updateNextNumber();
@@ -1156,6 +1374,7 @@
     toggleCaptureShutter();
     updateFormTitle();
     renderMeasurementTabs();
+    window.addEventListener("resize", adjustListHeight);
   </script>
 </body>
 </html>
