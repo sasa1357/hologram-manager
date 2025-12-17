@@ -436,6 +436,7 @@
     const shotAtInput = document.getElementById("shotAt");
     const shotAtPicker = document.getElementById("shotAtPicker");
     const shotAtCalendarBtn = document.getElementById("shotAt-calendar");
+    const shotAtLabel = shotAtCalendarBtn ? shotAtCalendarBtn.closest("label") : null;
     const memoInput = document.getElementById("memo");
     const photoInputs = [1, 2].map((n) => document.getElementById(`photo-${n}`));
     const previewEls = [1, 2].map((n) => document.getElementById(`preview-${n}`));
@@ -711,22 +712,27 @@
       });
     });
     let shotAtScrollPos = 0;
-    if (shotAtCalendarBtn && shotAtPicker) {
+    if (shotAtCalendarBtn && shotAtPicker && shotAtLabel) {
+      shotAtLabel.style.position = "relative";
       const hidePicker = () => {
         shotAtPicker.style.pointerEvents = "none";
         shotAtPicker.style.left = "-9999px";
         shotAtPicker.style.top = "-9999px";
+        shotAtPicker.style.position = "absolute";
         window.scrollTo({ top: shotAtScrollPos });
         shotAtCalendarBtn.focus({ preventScroll: true });
       };
 
       shotAtCalendarBtn.addEventListener("click", () => {
         shotAtScrollPos = window.scrollY || document.documentElement.scrollTop || 0;
-        const rect = shotAtCalendarBtn.getBoundingClientRect();
-        shotAtPicker.style.left = `${rect.left + window.scrollX}px`;
-        shotAtPicker.style.top = `${rect.bottom + window.scrollY}px`;
+        const btnRect = shotAtCalendarBtn.getBoundingClientRect();
+        const labelRect = shotAtLabel.getBoundingClientRect();
+        const leftWithinLabel = btnRect.left - labelRect.left;
+        shotAtPicker.style.position = "absolute";
+        shotAtPicker.style.left = `${leftWithinLabel}px`;
+        shotAtPicker.style.top = `320px`;
         shotAtPicker.style.pointerEvents = "auto";
-        shotAtPicker.focus();
+        shotAtPicker.focus({ preventScroll: true });
         if (shotAtPicker.showPicker) {
           shotAtPicker.showPicker();
         } else {
@@ -792,6 +798,7 @@
       pageByTab[activeTab] = 1;
       renderList();
       updateNextNumber();
+      showToast("保存しました");
     });
 
     function toggleParamsBlock() {
