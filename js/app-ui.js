@@ -49,7 +49,6 @@
 
   core.setElements(elements);
 
-  // File import/export
   if (elements.exportBtn) {
     elements.exportBtn.addEventListener("click", () => core.exportData());
   }
@@ -77,7 +76,6 @@
     });
   }
 
-  // Photo handling
   (elements.photoInputs || []).forEach((input, idx) => {
     if (!input) return;
     const slot = idx + 1;
@@ -114,7 +112,6 @@
     });
   });
 
-  // Date picker positioning (top fixed 320px)
   let shotAtScrollPos = 0;
   if (elements.shotAtCalendarBtn && elements.shotAtPicker && elements.shotAtLabel) {
     elements.shotAtLabel.style.position = "relative";
@@ -152,7 +149,6 @@
     });
   }
 
-  // Measurement tabs and decision dots
   if (elements.measurementTabs) {
     elements.measurementTabs.addEventListener("click", (e) => {
       const mode = e.target.dataset.measure;
@@ -162,7 +158,6 @@
     });
   }
 
-  // Arrow-down to next field (capture/param inputs)
   const paramNavInputs = [...(elements.captureInputs || []), ...(elements.paramInputs || [])].filter(Boolean);
   paramNavInputs.forEach((inp, idx) => {
     inp.addEventListener("keydown", (e) => {
@@ -208,7 +203,6 @@
     }
   });
 
-  // Pagination
   if (elements.pagePrevBtn && elements.pageNextBtn) {
     elements.pagePrevBtn.addEventListener("click", () => {
       const current = core.pageByTab[core.activeTab] || 1;
@@ -228,7 +222,6 @@
     });
   }
 
-  // List click (open/delete)
   if (elements.listEl) {
     elements.listEl.addEventListener("click", (e) => {
       const action = e.target.dataset.action;
@@ -249,7 +242,6 @@
     });
   }
 
-  // Modal click
   if (elements.modal) {
     elements.modal.addEventListener("click", (e) => {
       const action = e.target.dataset.action;
@@ -273,12 +265,10 @@
     });
   }
 
-  // Form actions
   if (elements.formResetBtn) elements.formResetBtn.addEventListener("click", () => core.resetForm());
   if (elements.saveBtn) elements.saveBtn.addEventListener("click", () => core.saveEntry());
   if (elements.modalCopyHoloBtn) elements.modalCopyHoloBtn.addEventListener("click", () => core.copyHoloLatex());
 
-  // Initial render
   core.renderTabs();
   core.renderList();
   core.updateNextNumber();
