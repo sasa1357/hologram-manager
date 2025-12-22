@@ -229,10 +229,10 @@
   function applyShutterPlaceholder() {
     const shutterInput = elements.captureInputs?.find((i) => i.dataset.capture === "shutterTime");
     const l3Input = elements.captureInputs?.find((i) => i.dataset.capture === "l3Holoplate");
-    const setDash = (input, enable) => {
+    const setDash = (input, enable, forceDash = false) => {
       if (!input) return;
       if (enable) {
-        if (!input.value) input.value = "－";
+        if (forceDash || !input.value || input.value === "－") input.value = "－";
         input.readOnly = true;
         input.classList.add("dash-placeholder");
       } else {
@@ -248,13 +248,16 @@
       return;
     }
     if (measurementMode === "shutter") {
-      setDash(shutterInput, true);
+      // シャッター計測ではシャッター時間を必ずダッシュ表示に戻す
+      setDash(shutterInput, true, true);
+      // L3は自由入力
       setDash(l3Input, false);
       return;
     }
     if (measurementMode === "distance") {
+      // L3計測ではL3欄を必ずダッシュ表示に戻す
       setDash(shutterInput, false);
-      setDash(l3Input, true);
+      setDash(l3Input, true, true);
       return;
     }
     setDash(shutterInput, false);
