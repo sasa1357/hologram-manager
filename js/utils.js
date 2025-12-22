@@ -1,4 +1,3 @@
-// Utility functions shared across the app
 (function () {
   function formatDate(value) {
     if (!value) return "";
