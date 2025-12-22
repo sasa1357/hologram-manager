@@ -162,6 +162,27 @@
     });
   }
 
+  // Arrow-down to next field (capture/param inputs)
+  const paramNavInputs = [...(elements.captureInputs || []), ...(elements.paramInputs || [])].filter(Boolean);
+  paramNavInputs.forEach((inp, idx) => {
+    inp.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowDown") {
+        const next = paramNavInputs[idx + 1];
+        if (next) {
+          e.preventDefault();
+          next.focus();
+        }
+      }
+      if (e.key === "ArrowUp") {
+        const prev = paramNavInputs[idx - 1];
+        if (prev) {
+          e.preventDefault();
+          prev.focus();
+        }
+      }
+    });
+  });
+
   if (elements.measurementContent) {
     elements.measurementContent.addEventListener("click", (e) => {
       const cell = e.target.closest(".decision-cell");
