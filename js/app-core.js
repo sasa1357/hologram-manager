@@ -23,9 +23,11 @@
   let pendingImages = { 1: null, 2: null };
   let openId = null;
   let measurementMode = "shutter";
+  let yearFilter = "all";
   let elements = {};
   let toastTimer = null;
   const listHeightByTab = { test: 1510, product: 1175 };
+  const maxImageBytes = 5 * 1024 * 1024;
 
   function setElements(el) {
     elements = el;
@@ -100,6 +102,10 @@
       alert("画像ファイルを選択してください。");
       return;
     }
+    if (file.size && file.size > maxImageBytes) {
+      alert("画像サイズは5MB以下にしてください。");
+      return;
+    }
     const dataUrl = await fileToDataUrl(file);
     pendingImages[slot] = dataUrl;
     const preview = elements.previewEls?.[slot - 1];
@@ -116,6 +122,27 @@
     if (preview) preview.src = "";
     if (box) box.classList.remove("has-image");
     if (input) input.value = "";
+  }
+
+  function syncImageSlot(slot, dataUrl) {
+    pendingImages[slot] = dataUrl || "";
+    const preview = elements.previewEls?.[slot - 1];
+    const box = elements.uploadBoxes?.[slot - 1];
+    const input = elements.photoInputs?.[slot - 1];
+    if (preview) preview.src = dataUrl || "";
+    if (box) {
+      if (dataUrl) box.classList.add("has-image");
+      else box.classList.remove("has-image");
+    }
+    if (input) input.value = "";
+  }
+
+  function swapImages(slotA, slotB) {
+    if (slotA === slotB) return;
+    const a = pendingImages[slotA] || "";
+    const b = pendingImages[slotB] || "";
+    syncImageSlot(slotA, b);
+    syncImageSlot(slotB, a);
   }
 
   function collectMeasurement() {
@@ -289,9 +316,17 @@
   }
 
   function renderList() {
-    const { listEl, listTitle, countLabel, pageInfo, pagePrevBtn, pageNextBtn } = elements;
+    const { listEl, listTitle, countLabel, pageInfo, pagePrevBtn, pageNextBtn, yearFilterSelect } = elements;
     if (!listEl) return;
-    const list = entries();
+    let list = [...entries()];
+    const getItemYear = (item) => {
+      const base = item.shotAt || item.createdAt || "";
+      const match = String(base).match(/^(\d{4})/);
+      return match ? match[1] : "";
+    };
+    if (yearFilter !== "all") {
+      list = list.filter((item) => getItemYear(item) === yearFilter);
+    }
     if (listTitle) listTitle.textContent = activeTab === "test" ? "露光テスト結果一覧" : "作成ホログラム一覧";
     if (countLabel) countLabel.textContent = `${list.length} 件`;
     const totalPages = Math.max(1, Math.ceil(list.length / pageSize));
@@ -301,6 +336,16 @@
     pageByTab[activeTab] = page;
     const startIdx = (page - 1) * pageSize;
     const sliced = list.slice(startIdx, startIdx + pageSize);
+
+    if (yearFilterSelect) {
+      const years = Array.from(
+        new Set(entries().map((item) => getItemYear(item)).filter((y) => y))
+      ).sort((a, b) => Number(b) - Number(a));
+      const current = yearFilter || "all";
+      yearFilterSelect.innerHTML = `<option value="all">すべて</option>` + years.map((y) => `<option value="${y}">${y}</option>`).join("");
+      yearFilterSelect.value = years.includes(current) ? current : "all";
+      if (!years.includes(current) && current !== "all") yearFilter = "all";
+    }
 
     if (!list.length) {
       listEl.innerHTML = `<div class="meta" style="grid-column: 1 / -1;">まだ登録がありません。</div>`;
@@ -314,7 +359,7 @@
         card.dataset.id = item.id;
         const shotLabel = item.shotDisplay || formatDate(item.shotAt) || formatDate(item.createdAt) || "ー";
         const params = item.params || {};
-        const paramSummary = activeTab === "product" ? `<div class="meta">種類: ${params.type || "-"}</div>` : "";
+        const paramSummary = activeTab === "product" ? `<div class="meta">種類: ${params.type || "－"}</div>` : "";
         const measureLabel =
           activeTab === "test" && item.measurement
             ? item.measurement.mode === "distance"
@@ -434,8 +479,8 @@
         const renderImg = (src, label) => `
           <div style="display:grid; gap:6px;">
             <div class="meta">${label}</div>
-            <div style="background:#f5f6f8;border:1px solid var(--border);border-radius:10px;min-height:200px;display:grid;place-items:center;overflow:hidden;">
-              <img src="${src}" alt="${label}" style="width:100%;height:100%;object-fit:contain;" />
+            <div class="modal-zoom-container" style="background:#f5f6f8;border:1px solid var(--border);border-radius:10px;min-height:200px;display:grid;place-items:center;overflow:auto;">
+              <img src="${src}" alt="${label}" class="modal-zoomable" style="width:100%;height:100%;object-fit:contain;" />
             </div>
           </div>
         `;
@@ -628,9 +673,16 @@
     set openId(val) {
       openId = val;
     },
+    get yearFilter() {
+      return yearFilter;
+    },
+    set yearFilter(val) {
+      yearFilter = val;
+    },
     pageByTab,
     setPendingImage,
     clearImage,
+    swapImages,
     renderTabs,
     renderList,
     resetForm,
