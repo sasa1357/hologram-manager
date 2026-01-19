@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ホログラム管理</title>
+  <title>ホログラム管理サイト</title>
   <style>
     :root {
       --bg: #f7f8fa;
@@ -247,6 +247,46 @@
     .modal__fields textarea { min-height: 180px; }
     .modal__actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
 
+    .modal-zoomable { cursor: zoom-in; }
+
+    .image-lightbox {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 3000;
+    }
+    .image-lightbox.show { display: flex; }
+    .image-lightbox__backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+    }
+    .image-lightbox__img {
+      position: relative;
+      max-width: 92vw;
+      max-height: 92vh;
+      object-fit: contain;
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      background: #fff;
+    }
+    .image-lightbox__close {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      border: none;
+      background: rgba(0,0,0,0.6);
+      color: #fff;
+      border-radius: 50%;
+      width: 34px;
+      height: 34px;
+      font-size: 18px;
+      cursor: pointer;
+      z-index: 1;
+    }
+
     .toast {
       position: fixed;
       right: 18px;
@@ -292,7 +332,7 @@
 <body>
   <div class="app">
     <header>
-      <div class="title">ホログラム管理</div>
+      <div class="title">ホログラム管理サイト</div>
       <div class="tabs" id="tab-bar"></div>
     </header>
 
@@ -379,6 +419,12 @@
             <h2 style="margin:0;" id="list-title">露光テスト結果一覧</h2>
             <div class="meta" id="count-label"></div>
           </div>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span class="meta">年</span>
+            <select id="year-filter" style="border:1px solid var(--border); border-radius:8px; padding:6px 8px; background:transparent;">
+              <option value="all">すべて</option>
+            </select>
+          </div>
           <div class="pagination" id="pagination">
             <button type="button" id="page-prev">前へ</button>
             <div class="meta" id="page-info"></div>
@@ -419,6 +465,11 @@
     </div>
   </div>
   <div class="toast" id="toast" aria-live="polite"></div>
+  <div class="image-lightbox" id="image-lightbox" aria-hidden="true">
+    <div class="image-lightbox__backdrop" data-action="close-lightbox"></div>
+    <button class="image-lightbox__close" data-action="close-lightbox" aria-label="close">×</button>
+    <img class="image-lightbox__img" id="image-lightbox-img" alt="zoomed image" />
+  </div>
 
   <script src="js/utils.js"></script>
   <script src="js/state.js"></script>
