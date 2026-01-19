@@ -1,5 +1,6 @@
 (() => {
   const core = window.appCore;
+  let dragSlot = null;
 
   const elements = {
     tabBar: document.getElementById("tab-bar"),
@@ -20,6 +21,7 @@
     pageInfo: document.getElementById("page-info"),
     pagePrevBtn: document.getElementById("page-prev"),
     pageNextBtn: document.getElementById("page-next"),
+    yearFilterSelect: document.getElementById("year-filter"),
     formPanel: document.getElementById("form-panel"),
     formTitle: document.getElementById("form-title"),
     formResetBtn: document.getElementById("form-reset"),
@@ -45,6 +47,8 @@
     modalMeasurement: document.getElementById("modal-measurement"),
     modalCopyHoloBtn: document.querySelector('[data-action="copy-holo-latex"]'),
     toast: document.getElementById("toast"),
+    imageLightbox: document.getElementById("image-lightbox"),
+    imageLightboxImg: document.getElementById("image-lightbox-img"),
   };
 
   core.setElements(elements);
@@ -76,6 +80,14 @@
     });
   }
 
+  if (elements.yearFilterSelect) {
+    elements.yearFilterSelect.addEventListener("change", (e) => {
+      core.yearFilter = e.target.value || "all";
+      core.pageByTab[core.activeTab] = 1;
+      core.renderList();
+    });
+  }
+
   (elements.photoInputs || []).forEach((input, idx) => {
     if (!input) return;
     const slot = idx + 1;
@@ -87,7 +99,20 @@
   (elements.uploadBoxes || []).forEach((box, idx) => {
     if (!box) return;
     const slot = idx + 1;
+    box.setAttribute("draggable", "true");
     box.addEventListener("click", () => elements.photoInputs?.[idx]?.click());
+    box.addEventListener("dragstart", (e) => {
+      if (!box.classList.contains("has-image")) {
+        e.preventDefault();
+        return;
+      }
+      dragSlot = slot;
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", String(slot));
+    });
+    box.addEventListener("dragend", () => {
+      dragSlot = null;
+    });
     box.addEventListener("dragover", (e) => {
       e.preventDefault();
       box.classList.add("dragover");
@@ -99,8 +124,16 @@
     box.addEventListener("drop", async (e) => {
       e.preventDefault();
       box.classList.remove("dragover");
+      const fromSlot = dragSlot || Number(e.dataTransfer?.getData("text/plain") || 0);
+      if (fromSlot && fromSlot !== slot) {
+        core.swapImages(fromSlot, slot);
+        dragSlot = null;
+        return;
+      }
       const file = e.dataTransfer?.files?.[0];
-      await core.setPendingImage(file, slot);
+      if (file) {
+        await core.setPendingImage(file, slot);
+      }
     });
   });
 
@@ -262,6 +295,26 @@
         core.renderList();
         core.closeModal();
       }
+    });
+  }
+
+  if (elements.modalImageBox) {
+    elements.modalImageBox.addEventListener("click", (e) => {
+      const img = e.target.closest(".modal-zoomable");
+      if (!img) return;
+      if (!elements.imageLightbox || !elements.imageLightboxImg) return;
+      elements.imageLightboxImg.src = img.src;
+      elements.imageLightbox.classList.add("show");
+      elements.imageLightbox.setAttribute("aria-hidden", "false");
+    });
+  }
+  if (elements.imageLightbox) {
+    elements.imageLightbox.addEventListener("click", (e) => {
+      const action = e.target.dataset.action;
+      if (action !== "close-lightbox") return;
+      elements.imageLightbox.classList.remove("show");
+      elements.imageLightbox.setAttribute("aria-hidden", "true");
+      if (elements.imageLightboxImg) elements.imageLightboxImg.src = "";
     });
   }
 
